@@ -33,6 +33,13 @@ class connect_S3():
         """Upload a file to an S3 bucket
         filename is deduce from key
 
+        args :
+            - file_to_upload : local full path of file to upload
+            ex:'data/prep/0101_1_20170512_112544_10_ets_supprime_EVT.csv',
+
+            - destination_in_s3
+            ex:  'INPI/TC_1/01_donnee_source/Flux/2017/ETS/EVT'
+
         If not specified then file_name is used
         :return: True if file was uploaded, else False
         """
@@ -44,11 +51,13 @@ class connect_S3():
         # Upload the file
         try:
             client_boto.Bucket(self.bucket).upload_file(file_to_upload, key)
+            return True
         except ClientError as e:
             if e.response['Error']['Code'] == "404":
                 print("The object does not exist.")
             else:
                 raise
+            return False
 
     def create_folder(self, directory_name):
         """
@@ -178,3 +187,46 @@ class connect_S3():
             error_bad_lines=False)
 
         return df_
+    
+    def key_exist(self, key):
+        '''
+        Check existence of a file in S3
+
+        Args:
+        - key: full path of file in S3
+        ex: 'INPI/TC_1/00_RawData/public/IMR_Donnees_Saisies/tc/stock/2019/11/25/9401_S7_20191125.zip'
+
+        Return True if exists, False if not.
+        '''
+        
+        s3_service = self.client['resource']
+        try:
+            s3_service.Object(self.bucket, key).load()
+        except ClientError as e:
+            return int(e.response['Error']['Code']) != 404
+        return True
+
+    def list_files_s3(self,prefix_):
+        '''
+        List all keys in a directory in S3
+
+        Args:
+        - prefix_: Directory in S3 to lookup.
+        ex:'INPI/TC_1/Flux/2018/01/ACTES/NEW'
+        
+        Return:
+        A list of all keys found in this directory (files + folders)
+        ex: 
+        ['INPI/TC_1/Flux/2018/01/ACTES/NEW/',
+         'INPI/TC_1/Flux/2018/01/ACTES/NEW/0101_163_20180103_084810_12_actes.csv',
+         'INPI/TC_1/Flux/2018/01/ACTES/NEW/0101_164_20180104_054316_12_actes.csv']
+        '''
+        
+        bucket_name = self.client['resource'].Bucket(self.bucket)
+
+        ## List objects within a given prefix
+        list_files=[]
+        for obj in bucket_name.objects.filter(Prefix=prefix_):
+            list_files.append(obj.key)
+        
+        return list_files
